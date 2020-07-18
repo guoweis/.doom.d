@@ -1,0 +1,1072 @@
+#+EXPORT_FILE_NAME: readme
+#+SETUPFILE: https://fniessen.github.io/org-html-themes/setup/theme-readtheorg.setup
+
+* Preamble
+This is my private DOOM emacs configuration. It is tangled from ~config.org~ to ~config.el~
+and is exported to ~readme.org~ with =,e O o= to render in the githup repo.
+It is also rendered to HTML thanks to [[https://github.com/fniessen/org-html-themes][org-html-themes]] with =,e h h=
+
+** Username and e-mail:
+#+BEGIN_SRC emacs-lisp
+(setq user-full-name "Luca Cambiaghi"
+      user-mail-address "luca.cambiaghi@me.com")
+#+END_SRC
+** Better defaults
+#+BEGIN_SRC emacs-lisp
+(setq-default
+ uniquify-buffer-name-style 'forward              ; Uniquify buffer names
+ window-combination-resize t                      ; take new window space from all other windows (not just current)
+ x-stretch-cursor t)                              ; Stretch cursor to the glyph width
+
+(setq undo-limit 80000000                         ; Raise undo-limit to 80Mb
+      evil-want-fine-undo t                       ; By default while in insert all changes are one big blob. Be more granular
+      ;; auto-save-default t                         ; Nobody likes to loose work, I certainly don't
+      inhibit-compacting-font-caches t)           ; When there are lots of glyphs, keep them in memory
+
+(delete-selection-mode 1)                         ; Replace selection when inserting text
+;; (global-subword-mode 1)                           ; Iterate through CamelCase words
+#+END_SRC
+
+* Keybindings
+Let's have ~general~ auto-unbind keys:
+#+BEGIN_SRC emacs-lisp
+(general-auto-unbind-keys)
+#+END_SRC
+
+We then remap some of the bindings (inspired by [[https://github.com/jsmestad/dfiles/blob/master/.doom.d/%2Bbindings.el#L496-L854][bindings.el]]).
+#+BEGIN_SRC emacs-lisp
+(map! :leader
+      :desc "M-x"                   :n "SPC" #'counsel-M-x
+      :desc "ivy resume" :n ":" #'ivy-resume
+      :desc "Async shell command"   :n "!"   #'async-shell-command
+      :desc "Toggle eshell"         :n "'"   #'+eshell/toggle
+      :desc "Open dir in iTerm" :n "oi" #'+macos/open-in-iterm
+
+      (:desc "windows" :prefix "w"
+        :desc "popup raise" :n "p" #'+popup/raise)
+
+      (:desc "project" :prefix "p"
+        :desc "Eshell"               :n "'" #'projectile-run-eshell
+        :desc "Terminal" :n "t" #'projectile-run-vterm ))
+
+#+END_SRC
+
+* User Interface
+** Turn off line numbers
+#+BEGIN_SRC emacs-lisp
+(setq display-line-numbers-type nil)
+#+END_SRC
+** Font and font size:
+Toggle ~big mode~ with =SPC t b=
+#+BEGIN_SRC emacs-lisp
+(setq doom-font (font-spec :family "Menlo" :size 16)
+      doom-big-font (font-spec :family "Menlo" :size 20))
+;; (setq doom-font (font-spec :family "Fira Code" :size 14)
+;;       doom-big-font (font-spec :family "Fira Code" :size 22)
+;; doom-variable-pitch-font (font-spec :family "Overpass" :size 16))
+#+END_SRC
+** which-key delay
+#+BEGIN_SRC emacs-lisp
+(after! which-key
+    (setq which-key-idle-delay 0.5))
+#+END_SRC
+
+** TODO Transparency
+#+BEGIN_SRC emacs-lisp
+;; (set-frame-parameter (selected-frame)'alpha '(98 . 98))
+;; (add-to-list 'default-frame-alist'(alpha . (98 . 98)))
+#+END_SRC
+** Theme:
+#+BEGIN_SRC emacs-lisp
+(setq doom-theme 'doom-one)
+#+END_SRC
+** Fancy splash image
+#+BEGIN_SRC emacs-lisp
+(setq +doom-dashboard-banner-file
+      (expand-file-name "splash-images/black-hole2.png" doom-private-dir))
+#+END_SRC
+** Centaur-tabs
+#+BEGIN_SRC emacs-lisp
+(after! centaur-tabs
+  (setq centaur-tabs-set-modified-marker t
+        centaur-tabs-modified-marker "M"
+        centaur-tabs-cycle-scope 'tabs
+        centaur-tabs-set-close-button nil)
+  (centaur-tabs-group-by-projectile-project))
+#+END_SRC
+** Winum
+note: insteadf of using =SPC 0=, use =SPC w h= to access its window. In general,
+use those keys!
+#+BEGIN_SRC emacs-lisp
+(after! winum
+  ;; (defun winum-assign-0-to-treemacs ()
+  ;;   (when (string-match-p (buffer-name) "*Treemacs*") 10))
+
+  ;; (add-to-list 'winum-assign-functions #'winum-assign-0-to-treemacs)
+  ;; (set-face-attribute 'winum-face nil :weight 'bold)
+
+    (map! (:when (featurep! :ui window-select)
+            :leader
+            :n "1" #'winum-select-window-1
+            :n "2" #'winum-select-window-2
+            :n "3" #'winum-select-window-3
+        )))
+#+END_SRC
+** Pretty code
+#+BEGIN_SRC emacs-lisp
+(setq +pretty-code-enabled-modes '(org-mode))
+#+END_SRC
+** modeline
+*** Hide undesired info
+#+BEGIN_SRC emacs-lisp
+(after! doom-modeline
+  (setq doom-modeline-buffer-encoding nil)
+  (setq doom-modeline-env-enable-python nil))
+;; (setq doom-modeline-env-python-executable (executable-find "python"))
+#+END_SRC
+*** Show battery and time
+#+BEGIN_SRC emacs-lisp
+(after! doom-modeline
+    (setq display-time-default-load-average nil)      ; don't show load average
+    (display-time-mode 1)                             ; Enable time in the mode-line
+    (display-battery-mode 1))                          ; On laptops it's nice to know how much power you have
+#+END_SRC
+** Split window and move to it
+#+BEGIN_SRC emacs-lisp
+(setq evil-split-window-below t
+      evil-vsplit-window-right t)
+#+END_SRC
+** Syntax highlighting
+After ~doom sync~ you should run ~tree-sitter-install-grammars~
+#+BEGIN_SRC emacs-lisp
+(use-package tree-sitter :after python-mode)
+
+(after! tree-sitter
+  (require 'tree-sitter)
+  (require 'tree-sitter-langs)
+  (require 'tree-sitter-hl)
+  (add-hook 'python-mode-hook #'tree-sitter-hl-mode))
+#+END_SRC
+** Toggle centered cursor
+#+BEGIN_SRC emacs-lisp
+(map! :leader
+      :desc "toggle centered cursor"                   :n "t-" (λ! () (interactive) (centered-cursor-mode 'toggle))
+      )
+#+END_SRC
+
+
+* Magit
+#+BEGIN_SRC emacs-lisp
+(after! magit
+  ;; (magit-wip-mode)
+  (setq magit-repository-directories '(("~/git" . 2))
+        magit-save-repository-buffers nil
+        ;; Don't restore the wconf after quitting magit
+        magit-inhibit-save-previous-winconf t
+        magit-log-arguments '("--graph" "--decorate" "--color")
+        ;; magit-delete-by-moving-to-trash nil
+        git-commit-summary-max-length 120))
+#+END_SRC
+* Company
+** Delay, prefix length
+#+BEGIN_SRC emacs-lisp
+(after! company
+  (setq company-idle-delay 0.3
+        company-minimum-prefix-length 1
+  company-dabbrev-code-everywhere t
+  company-dabbrev-code-other-buffers 'all))
+        ;; company-quickhelp-delay 0.4)
+#+END_SRC
+** Backends
+#+BEGIN_SRC emacs-lisp
+(after! prescient
+  (setq-default history-length 1000)
+  (setq-default prescient-history-length 1000))
+
+;; (add-hook 'after-init-hook 'company-statistics-mode))
+
+;; (set-company-backend! 'org-mode
+;;   '(company-capf company-files company-dabbrev-code))
+(after! company
+  (use-package company-tabnine :ensure t)
+  (setq company-backends '(company-tabnine company-capf company-yasnippet)))
+
+;; (after! company
+;;   (add-to-list 'company-backends 'company-tabnine))
+#+END_SRC
+** TODO Interference with yasnippet
+#+BEGIN_SRC emacs-lisp
+;; (after! company
+;;   (defun company-yasnippet-or-completion ()
+;;     (interactive)
+;;     (let ((yas-fallback-behavior nil))
+;;       (unless (yas-expand)
+;;         (call-interactively #'company-complete-common))))
+
+;;   (add-hook 'company-mode-hook (lambda ()
+;;                                  (substitute-key-definition 'company-complete-common
+;;                                                             'company-yasnippet-or-completion
+;;                                                             company-active-map))))
+#+END_SRC
+
+* Org
+** Better defaults
+#+BEGIN_SRC emacs-lisp
+(setq org-directory "~/Dropbox/org"
+      org-image-actual-width nil
+      +org-export-directory "~/Dropbox/org/export"
+      org-default-notes-file "~/Dropbox/org/personal/inbox.org"
+      org-id-locations-file "~/Dropbox/org/.orgids"
+      org-agenda-files (directory-files-recursively "~/Dropbox/org/" "\\.org$")
+      ;; org-export-in-background t
+      org-catch-invisible-edits 'smart)
+#+END_SRC
+** TODO Export
+Load ~ox-ravel~:
+#+BEGIN_SRC emacs-lisp
+;; (load! "modules/ox-ravel")
+#+END_SRC
+This allows to export from ~.org~ to ~.Rmd~
+** Capture templates
+#+BEGIN_SRC emacs-lisp
+(after! org
+
+  (setq org-capture-templates
+                  '(("d" "Diary")
+                    ("u" "URL")))
+
+  (add-to-list 'org-capture-templates
+             '("dn" "New Diary Entry" entry(file+olp+datetree"~/git/Dropbox/org/personal/diary.org" "Daily Logs")
+"* %^{thought for the day}
+:PROPERTIES:
+:CATEGORY: %^{category}
+:SUBJECT:  %^{subject}
+:MOOD:     %^{mood}
+:END:
+:RESOURCES:
+:END:
+
+\*What was one good thing you learned today?*:
+- %^{whatilearnedtoday}
+
+\*List one thing you could have done better*:
+- %^{onethingdobetter}
+
+\*Describe in your own words how your day was*:
+- %?"))
+
+  (add-to-list 'org-capture-templates
+      '("un" "New URL Entry" entry(file+function "~/Dropbox/org/personal/dailies.org" org-reverse-datetree-goto-date-in-file)
+            "* [[%^{URL}][%^{Description}]] %^g %?")))
+#+END_SRC
+** Prettify
+*** Bullets
+#+BEGIN_SRC emacs-lisp
+(after! org-superstar
+    (setq org-superstar-headline-bullets-list '("✖" "✚" "◆" "▶" "○")
+        org-ellipsis "▼"))
+#+END_SRC
+*** TODO Tables
+#+BEGIN_SRC emacs-lisp
+;; (setq global-org-pretty-table-mode t)
+#+END_SRC
+*** TODO Pretty mode
+#+BEGIN_SRC emacs-lisp
+;; (add-hook! 'org-mode-hook #'+org-pretty-mode)
+#+END_SRC
+** Org agenda popup
+#+BEGIN_SRC emacs-lisp
+(set-popup-rule! "*org agenda*" :side 'right :size .40 :select t :vslot 2 :ttl 3)
+#+END_SRC
+** ox-ipynb
+#+BEGIN_SRC emacs-lisp
+(require 'ox-ipynb)
+#+END_SRC
+** Org babel clojure
+#+BEGIN_SRC emacs-lisp
+(after! evil-org
+  (setq org-babel-clojure-backend 'cider))
+#+END_SRC
+** Reveal
+#+BEGIN_SRC emacs-lisp
+(after! org-re-reveal
+(setq org-re-reveal-root "./reveal.js")
+  )
+#+END_SRC
+
+** org-cv
+#+BEGIN_SRC emacs-lisp
+(after! evil-org
+    (use-package ox-moderncv
+        :load-path "/Users/luca/git/org-cv/"
+        :init (require 'ox-altacv))
+        ;; :init (require 'ox-moderncv))
+    )
+#+END_SRC
+** Use xelatex
+#+BEGIN_SRC emacs-lisp
+(after! latex
+    (setq org-latex-compiler "xelatex"))
+#+END_SRC
+
+* emacs-jupyter
+** Org default header arguments:
+#+BEGIN_SRC emacs-lisp
+(after! evil-org
+  (setq org-babel-default-header-args:jupyter-python '((:async . "yes")
+                                                       (:pandoc t)
+                                                       (:kernel . "python3")))
+  (setq org-babel-default-header-args:jupyter-R '((:pandoc t)
+                                                  (:kernel . "ir"))))
+#+END_SRC
+** Key bindings:
+#+BEGIN_SRC emacs-lisp
+;; (:when (featurep! :lang +jupyter)
+(map! :after evil-org
+      :map evil-org-mode-map
+      :leader
+      :desc "tangle" :n "ct" #'org-babel-tangle
+      :localleader
+      :desc "Hydra" :n "," #'jupyter-org-hydra/body
+      :desc "Inspect at point" :n "?" #'jupyter-inspect-at-point
+      :desc "Execute and step" :n "RET" #'jupyter-org-execute-and-next-block
+      :desc "Delete code block" :n "x" #'jupyter-org-kill-block-and-results
+      :desc "New code block above" :n "+" #'jupyter-org-insert-src-block
+      :desc "New code block below" :n "=" (λ! () (interactive) (jupyter-org-insert-src-block t nil))
+      :desc "Merge code blocks" :n "m" #'jupyter-org-merge-blocks
+      :desc "Split code block" :n "-" #'jupyter-org-split-src-block
+      :desc "Fold results" :n "z" #'org-babel-hide-result-toggle
+
+      :map org-src-mode-map
+      :localleader
+      :desc "Exit edit" :n "'" #'org-edit-src-exit)
+
+(map! :after python
+      :map python-mode-map
+      :localleader
+      (:desc "eval" :prefix "e"
+       :desc "line or region" :n "e" #'jupyter-eval-line-or-region
+        :desc "defun" :n "d" #'jupyter-eval-defun
+       :desc "buffer" :n "b" #'jupyter-eval-buffer))
+#+END_SRC
+** Popups
+#+BEGIN_SRC emacs-lisp
+(set-popup-rule! "*jupyter-pager*" :side 'right :size .40 :select t :vslot 2 :ttl 3)
+(set-popup-rule! "^\\*Org Src*" :side 'right :size .60 :select t :vslot 2 :ttl 3 :quit nil)
+(set-popup-rule! "*jupyter-repl*" :side 'bottom :size .30 :vslot 2 :ttl 3)
+#+END_SRC
+** Library of babel
+#+BEGIN_SRC emacs-lisp
+(after! evil-org
+  (org-babel-lob-ingest "/Users/luca/git/experiments/literate/ml/rpy2.org"))
+#+END_SRC
+** Eval handler
+With ~g r~ we can send code to the Jupyter REPL:
+#+BEGIN_SRC emacs-lisp
+(after! jupyter
+  (set-eval-handler! 'jupyter-repl-interaction-mode #'jupyter-eval-line-or-region))
+#+END_SRC
+
+** Set REPL handler
+On a scratch buffer, first run ~jupyter-associate-buffer~.
+Then, hitting ~SPC o r~ allows use to hit the REPL buffer with the lines/regions
+of code we send with ~g r~.
+#+BEGIN_SRC emacs-lisp
+(add-hook! python-mode
+  (set-repl-handler! 'python-mode #'jupyter-repl-pop-to-buffer))
+#+END_SRC
+** Use overlays
+Evaluate simple expressions to the right of the symbol with =, e e=
+#+BEGIN_SRC emacs-lisp
+(after! jupyter
+  (setq jupyter-eval-use-overlays t))
+#+END_SRC
+** TODO Long outputs
+#+BEGIN_SRC emacs-lisp
+(after! jupyter
+  (cl-defmethod jupyter-org--insert-result (_req context result)
+    (let ((str
+           (org-element-interpret-data
+            (jupyter-org--wrap-result-maybe
+             context (if (jupyter-org--stream-result-p result)
+                         (thread-last result
+                           jupyter-org-strip-last-newline
+                           jupyter-org-scalar)
+                       result)))))
+      (if (< (length str) 10000)
+          (insert str)
+        (insert (format ": Result was too long! Length was %d" (length str)))))
+    (when (/= (point) (line-beginning-position))
+      ;; Org objects such as file links do not have a newline added when
+      ;; converting to their string representation by
+      ;; `org-element-interpret-data' so insert one in these cases.
+      (insert "\n"))))
+#+END_SRC
+
+** TODO Bigger inline images
+#+BEGIN_SRC emacs-lisp
+;; (setq org-image-actual-width t)
+#+END_SRC
+** Fix zmq keywords
+#+BEGIN_SRC emacs-lisp
+(defadvice! fixed-zmq-start-process (orig-fn &rest args)
+  :around #'zmq-start-process
+  (letf! (defun make-process (&rest plist)
+           (plist-put! plist :coding (plist-get plist :coding-system))
+           (plist-delete! plist :coding-system)
+           (apply make-process plist))
+    (apply orig-fn args)))
+#+END_SRC
+
+* Python
+** REPL
+*** virtualenv executable
+#+BEGIN_SRC emacs-lisp
+(defadvice! +python-poetry-open-repl-a (orig-fn &rest args)
+  "Use the Python binary from the current virtual environment."
+  :around #'+python/open-repl
+  (if (getenv "VIRTUAL_ENV")
+      (let ((python-shell-interpreter (executable-find "ipython")))
+        (apply orig-fn args))
+    (apply orig-fn args)))
+#+END_SRC
+*** Silence warnings when opening REPL
+#+BEGIN_SRC emacs-lisp
+(setq python-shell-prompt-detect-failure-warning nil)
+#+END_SRC
+*** Ignore popup rule
+#+BEGIN_SRC emacs-lisp
+(set-popup-rule! "^\\*Python*" :ignore t)
+#+END_SRC
+*** Disable native completion
+#+BEGIN_SRC emacs-lisp
+(after! python
+  (setq python-shell-completion-native-enable nil))
+#+END_SRC
+
+** LSP
+*** Use lsp-python-ms
+#+BEGIN_SRC emacs-lisp
+(after! lsp-python-ms
+  (set-lsp-priority! 'mspyls 1))
+#+END_SRC
+*** TODO Use pyright
+#+BEGIN_SRC emacs-lisp
+;; (setq lsp-pyright-server-cmd '("pyright-langserver"
+;;                                "--stdio"))
+
+;; (after! lsp-mode
+;;   (lsp-register-client
+;;    (make-lsp-client
+;;     :new-connection (lsp-stdio-connection
+;;                      (lambda () lsp-pyright-server-cmd)
+;;                      (lambda ()
+;;                        (and (cl-first lsp-pyright-server-cmd)
+;;                             (executable-find (cl-first lsp-pyright-server-cmd)))))
+;;     :major-modes '(python-mode)
+;;     :server-id 'mspyright
+;;     :priority 1
+;;     :initialized-fn (lambda (workspace)
+;;                       (with-lsp-workspace workspace
+;;                         (lsp--set-configuration (lsp-configuration-section "python"))))
+;;     :notification-handlers (lsp-ht ("pyright/beginProgress" 'ignore)
+;;                                    ("pyright/reportProgress" 'ignore)
+;;                                    ("pyright/endProgress" 'ignore))))
+;;   )
+#+END_SRC
+
+*** Don't guess project root
+In case we get a wrong workspace root, we can delete it with ~lsp-workspace-folders-remove~
+#+BEGIN_SRC emacs-lisp
+(after! lsp-mode
+  (setq lsp-auto-guess-root nil))
+#+END_SRC
+
+#+begin_src emacs-lisp
+(after! projectile
+  (setq projectile-project-root-files '("Dockerfile" "pyproject.toml" "project.clj")))
+#+end_src
+
+*** Increase bytes read from subprocess
+#+BEGIN_SRC emacs-lisp
+(setq read-process-output-max (* 1024 1024))
+#+END_SRC
+*** TODO LSP idle delay
+This variable determines how often lsp-mode will refresh the highlights, lenses, links, etc while you type.
+#+BEGIN_SRC emacs-lisp
+;; (after! lsp-mode
+;;   (setq lsp-idle-delay 0.500))
+#+END_SRC
+*** TODO Prefer company-capf over company-lsp
+#+BEGIN_SRC emacs-lisp
+;; (setq +lsp-company-backend 'company-capf)
+#+END_SRC
+*** lsp-help popup
+Lookup documentation with ~SPC c k~
+#+BEGIN_SRC emacs-lisp
+(set-popup-rule! "^\\*lsp-help" :side 'right :size .50 :select t :vslot 1)
+#+END_SRC
+*** TODO Missing imports
+In python mode, use ~, i i~ to add missing imports
+#+BEGIN_SRC emacs-lisp
+;; (after! pyimport
+;;   (setq pyimport-pyflakes-path "~/git/experiments/.venv/bin/pyflakes"))
+#+END_SRC
+*** TODO Use flymake instead of flycheck
+#+BEGIN_SRC emacs-lisp
+;; (after! lsp-mode
+;;   (setq lsp-diagnostic-package :flymake))
+
+;; (after! lsp-mode
+;;   (add-hook! python-mode (setq lsp-diagnostic-package :flymake)))
+
+;; (after! python
+;;   (setq python-flymake-command  "~/git/experiments/.venv/bin/pyflakes"))
+
+;; (after! flycheck
+;;   (setq-default flycheck-checker 'python-pylint))
+#+END_SRC
+*** Disable lsp flycheck checker
+#+BEGIN_SRC emacs-lisp
+(after! lsp-mode
+  (setq lsp-diagnostic-package :none))
+  ;; (setq flycheck-disabled-checkers 'lsp)
+#+END_SRC
+
+*** UI
+#+BEGIN_SRC emacs-lisp
+(after! lsp-mode
+  (setq lsp-eldoc-enable-hover nil
+        lsp-signature-auto-activate nil
+        ;; lsp-enable-on-type-formatting nil
+        lsp-enable-symbol-highlighting nil))
+        ;; lsp-enable-file-watchers nil))
+#+END_SRC
+*** Don't restart on exit
+#+BEGIN_SRC emacs-lisp
+(after! lsp-mode
+  (setq lsp-restart 'ignore))
+#+END_SRC
+
+** Pytest
+#+BEGIN_SRC emacs-lisp
+(after! python-pytest
+  (setq python-pytest-arguments '("--color" "--failed-first"))
+  (evil-set-initial-state 'python-pytest-mode 'normal))
+
+(set-popup-rule! "^\\*pytest*" :side 'right :size .50)
+#+END_SRC
+** dap-mode
+*** dap configure windows
+#+BEGIN_SRC emacs-lisp
+(after! dap-python
+  (setq dap-auto-show-output nil)
+
+  (setq dap-auto-configure-features '(locals))
+
+  (setq dap-ui-buffer-configurations
+        `((,"*dap-ui-locals*"  . ((side . right) (slot . 1) (window-width . 0.50))) ;; changed this to 0.50
+          (,"*dap-ui-expressions*" . ((side . right) (slot . 2) (window-width . 0.20)))
+          (,"*dap-ui-sessions*" . ((side . right) (slot . 3) (window-width . 0.20)))
+          (,"*dap-ui-breakpoints*" . ((side . left) (slot . 2) (window-width . , 0.20)))
+          (,"*debug-window*" . ((side . bottom) (slot . 3) (window-width . 0.20)))))
+
+
+  (defun my/window-visible (b-name)
+    "Return whether B-NAME is visible."
+    (-> (-compose 'buffer-name 'window-buffer)
+        (-map (window-list))
+        (-contains? b-name)))
+
+  (defun my/show-debug-windows (session)
+    "Show debug windows."
+    (let ((lsp--cur-workspace (dap--debug-session-workspace session)))
+      (save-excursion
+        (unless (my/window-visible dap-ui--locals-buffer)
+          (dap-ui-locals)))))
+
+  (add-hook 'dap-stopped-hook 'my/show-debug-windows)
+
+  (defun my/hide-debug-windows (session)
+    "Hide debug windows when all debug sessions are dead."
+    (unless (-filter 'dap--session-running (dap--get-sessions))
+      (and (get-buffer dap-ui--locals-buffer)
+           (kill-buffer dap-ui--locals-buffer))))
+
+  (add-hook 'dap-terminated-hook 'my/hide-debug-windows)
+
+  )
+#+END_SRC
+
+*** TODO dap-ui windows
+#+BEGIN_SRC emacs-lisp
+;; (after! dap-mode
+
+
+;;   ;; (set-popup-rule! "*dap-debug-.*" :side 'bottom :size .20 :slot 1)
+;;   ;; (set-popup-rule! "*dap-ui-repl*" :side 'right :size .50 :select t :vslot 2)
+;;   ;; (set-popup-rule! "*dap-ui-locals*" :side 'right :size .50)
+
+;;   )
+#+END_SRC
+
+*** Debug templates:
+Templates accessible with =, d d=
+#+BEGIN_SRC emacs-lisp
+(after! dap-python
+  (dap-register-debug-template "dap-debug-script"
+                               (list :type "python"
+                                     :args "-i"
+                                     :cwd (lsp-workspace-root)
+                                     :program nil ; (expand-file-name "~/git/blabla")
+                                     :request "launch"
+                                     :name "dap-debug-script"))
+
+  (dap-register-debug-template "dap-debug-test"
+                               (list :type "python"
+                                     :cwd (lsp-workspace-root)
+                                     ;; :environment-variables '(("PYTHONPATH" . "src"))
+                                     :module "pytest"
+                                     :request "launch"
+                                     :name "dap-debug-test-file"))
+
+  (dap-register-debug-template "dap-debug-bokeh"
+                               (list :type "python"
+                                     :args "--show crewrelief --log-level info"
+                                     :cwd (expand-file-name "~/git/crewrelief/src")
+                                     :program "serve"
+                                     :module "bokeh"
+                                     :request "launch"
+                                     :name "dap-debug-bokeh"))
+
+
+  )
+#+END_SRC
+
+*** Debug script:
+Standard debug script target, accessible with =, d s=
+#+BEGIN_SRC emacs-lisp
+(after! dap-python
+  (defun dap-python-script ()
+    (interactive
+     (dap-debug
+      (list :type "python"
+            :args "-i"
+            :cwd (lsp-workspace-root)
+            :program nil
+            :request "launch"
+            :name "dap-debug-script")))))
+#+END_SRC
+
+*** Debug test at point
+Standard debug test target, accessible with =, d t=
+#+BEGIN_SRC emacs-lisp
+(after! dap-python
+  (require 'python-pytest)
+
+  (defun dap-python-test-method-at-point ()
+    (interactive
+       (dap-debug
+        (list :type "python"
+              :args ""
+              :cwd (lsp-workspace-root)
+              :program (concat (buffer-file-name) ":" ":" (python-pytest--current-defun))
+              :module "pytest"
+              :request "launch"
+              :name "dap-debug-test-function")))))
+#+END_SRC
+
+*** virtualenv executable
+#+BEGIN_SRC emacs-lisp
+(defadvice! +dap-python-poetry-executable-find-a (orig-fn &rest args)
+  "Use the Python binary from the current virtual environment."
+  :around #'dap-python--pyenv-executable-find
+  (if (getenv "VIRTUAL_ENV")
+      (executable-find (car args))
+    (apply orig-fn args)))
+;; (after! dap-python
+;;   (defun dap-python--pyenv-executable-find (command)
+;;     (concat (getenv "VIRTUAL_ENV") "/bin/python")))
+#+END_SRC
+*** TODO completion
+#+BEGIN_SRC emacs-lisp
+  ;; (set-company-backend! 'dap-ui-repl-mode 'company-capf)
+
+;; (after! dap-mode
+
+;;   (add-hook 'dap-ui-repl-mode-hook
+;;             (lambda ()
+;;               (setq-local company-minimum-prefix-length 0))))
+#+END_SRC
+*** Bindings
+#+BEGIN_SRC emacs-lisp
+(map! :after dap-python
+    :map python-mode-map
+    :localleader
+    (:desc "debug" :prefix "d"
+      :desc "Hydra" :n "h" #'dap-hydra
+      :desc "Run debug configuration" :n "d" #'dap-debug
+      :desc "dap-ui REPL" :n "r" #'dap-ui-repl
+      :desc "Debug test function" :n "t" #'dap-python-test-method-at-point
+      :desc "Run last debug configuration" :n "l" #'dap-debug-last
+      :desc "Toggle breakpoint" :n "b" #'dap-breakpoint-toggle
+      :desc "dap continue" :n "c" #'dap-continue
+      :desc "dap next" :n "n" #'dap-next
+      :desc "Debug script" :n "s" #'dap-python-script
+      :desc "dap step in" :n "i" #'dap-step-in
+      :desc "dap eval at point" :n "e" #'dap-eval-thing-at-point
+      :desc "Disconnect" :n "q" #'dap-disconnect ))
+#+END_SRC
+** emacs-ipython-notebook
+*** Don't ignore ~ein~ buffers
+#+BEGIN_SRC emacs-lisp
+(after! ein
+  (set-popup-rule! "^\\*ein" :ignore t))
+#+END_SRC
+*** Bindings
+Bindings, inspired by[[https://github.com/millejoh/emacs-ipython-notebook/wiki/Spacemacs-Evil-Bindings][ this]].
+#+BEGIN_SRC emacs-lisp
+(map! (:when (featurep! :tools ein)
+        (:map ein:notebook-mode-map
+          :nmvo doom-localleader-key nil ;; remove binding to local-leader
+
+          ;; :desc "Execute" :ni "S-RET" #'ein:worksheet-execute-cell
+
+          :localleader
+          :desc "Show Hydra" :n "?" #'+ein/hydra/body
+          :desc "Execute and step" :n "RET" #'ein:worksheet-execute-cell-and-goto-next
+          :desc "Yank cell" :n "y" #'ein:worksheet-copy-cell
+          :desc "Paste cell" :n "p" #'ein:worksheet-yank-cell
+          :desc "Delete cell" :n "d" #'ein:worksheet-kill-cell
+          :desc "Insert cell below" :n "o" #'ein:worksheet-insert-cell-below
+          :desc "Insert cell above" :n "O" #'ein:worksheet-insert-cell-above
+          :desc "Next cell" :n "j" #'ein:worksheet-goto-next-input
+          :desc "Previous cell" :n "k" #'ein:worksheet-goto-prev-input
+          :desc "Save notebook" :n "fs" #'ein:notebook-save-notebook-command
+      )))
+#+END_SRC
+** Dash docsets
+When ~SPC c k~ fails, try searching in the docsets with ~SPC s k~.
+Install docsets with ~dash-docs-install-docset~.
+#+BEGIN_SRC emacs-lisp
+(set-popup-rule! "*eww*" :side 'right :size .50 :select t :vslot 2 :ttl 3)
+
+(after! dash-docs
+  ;; (setq dash-docs-docsets-path "/Users/luca/Library/Application Support/Dash/DocSets")
+  ;; (setq counsel-dash-docsets-path "/Users/luca/Library/Application Support/Dash/DocSets")
+  ;; (expand-file-name "~/Library/Application Support/Dash/DocSets")
+  ;; (set-docsets! 'python-mode "NumPy" "Pandas" "scikit-learn"))
+  (setq counsel-dash-docsets '("Pandas" "scikit-learn"))
+  (setq dash-docs-docsets '("Pandas" "scikit-learn")))
+#+END_SRC
+** Compilation popup
+#+BEGIN_SRC emacs-lisp
+(set-popup-rule! "*compilation*" :side 'right :size .50 :select t :vslot 2 :quit 'current)
+#+END_SRC
+* R
+** ESS console popup
+Disable popup for ESS:
+#+BEGIN_SRC emacs-lisp
+(set-popup-rule! "^\\*R:" :ignore t)
+#+END_SRC
+** Async eval
+#+BEGIN_SRC emacs-lisp
+(after! ess
+  (setq ess-eval-visibly 'nowait))
+#+END_SRC
+** Syntax highlighting
+#+BEGIN_SRC emacs-lisp
+(after! ess
+  (setq ess-R-font-lock-keywords '((ess-R-fl-keyword:keywords . t)
+                                   (ess-R-fl-keyword:constants . t)
+                                   (ess-R-fl-keyword:modifiers . t)
+                                   (ess-R-fl-keyword:fun-defs . t)
+                                   (ess-R-fl-keyword:assign-ops . t)
+                                   (ess-R-fl-keyword:%op% . t)
+                                   (ess-fl-keyword:fun-calls . t)
+                                   (ess-fl-keyword:numbers . t)
+                                   (ess-fl-keyword:operators . t)
+                                   (ess-fl-keyword:delimiters . t)
+                                   (ess-fl-keyword:= . t)
+                                   (ess-R-fl-keyword:F&T . t))))
+#+END_SRC
+
+** Pretty symbols
+#+BEGIN_SRC emacs-lisp
+(after! ess-r-mode
+  (appendq! +pretty-code-symbols
+            '(:assign "⟵"
+              :multiply "×"))
+  (set-pretty-symbols! 'ess-r-mode
+    ;; Functional
+    :def "function"
+    ;; Types
+    :null "NULL"
+    :true "TRUE"
+    :false "FALSE"
+    :int "int"
+    :floar "float"
+    :bool "bool"
+    ;; Flow
+    :not "!"
+    :and "&&" :or "||"
+    :for "for"
+    :in "%in%"
+    :return "return"
+    ;; Other
+    :assign "<-"
+    :multiply "%*%"))
+#+END_SRC
+* Clojure
+** TODO Use flycheck
+#+BEGIN_SRC emacs-lisp
+;; (after! lsp-mode
+;;   (add-hook! clojure-mode (setq lsp-diagnostic-package :flycheck)))
+#+END_SRC
+** Company keybingins
+#+BEGIN_SRC emacs-lisp
+(after! cider
+  (add-hook 'company-completion-started-hook 'custom/set-company-maps)
+  (add-hook 'company-completion-finished-hook 'custom/unset-company-maps)
+  (add-hook 'company-completion-cancelled-hook 'custom/unset-company-maps)
+
+  (defun custom/unset-company-maps (&rest unused)
+    "Set default mappings (outside of company).
+    Arguments (UNUSED) are ignored."
+    (general-def
+      :states 'insert
+      :keymaps 'override
+      "<down>" nil
+      "<up>"   nil
+      "RET"    nil
+      [return] nil
+      "C-n"    nil
+      "C-p"    nil
+      "C-j"    nil
+      "C-k"    nil
+      "C-h"    nil
+      "C-u"    nil
+      "C-d"    nil
+      "C-s"    nil
+      "C-S-s"   (cond ((featurep! :completion helm) nil)
+                      ((featurep! :completion ivy)  nil))
+      "C-SPC"   nil
+      "TAB"     nil
+      [tab]     nil
+      [backtab] nil))
+
+  (defun custom/set-company-maps (&rest unused)
+    "Set maps for when you're inside company completion.
+    Arguments (UNUSED) are ignored."
+    (general-def
+      :states 'insert
+      :keymaps 'override
+      "<down>" #'company-select-next
+      "<up>" #'company-select-previous
+      "RET" #'company-complete
+      [return] #'company-complete
+      "C-w"     nil           ; don't interfere with `evil-delete-backward-word'
+      "C-n"     #'company-select-next
+      "C-p"     #'company-select-previous
+      "C-j"     #'company-select-next
+      "C-k"     #'company-select-previous
+      "C-h"     #'company-show-doc-buffer
+      "C-u"     #'company-previous-page
+      "C-d"     #'company-next-page
+      "C-s"     #'company-filter-candidates
+      "C-S-s"   (cond ((featurep! :completion helm) #'helm-company)
+                      ((featurep! :completion ivy)  #'counsel-company))
+      "C-SPC"   #'company-complete-common
+      "TAB"     #'company-complete-common-or-cycle
+      [tab]     #'company-complete-common-or-cycle
+      [backtab] #'company-select-previous    ))
+  )
+#+END_SRC
+** REPL keybindings
+#+BEGIN_SRC emacs-lisp
+(add-hook! cider-repl-mode #'evil-normalize-keymaps)
+#+END_SRC
+
+** Cleverparens
+#+BEGIN_SRC emacs-lisp
+(after! smartparens
+  ;; (add-hook! clojure-mode #'smartparens-strict-mode)
+
+  (setq evil-cleverparens-use-s-and-S nil)
+
+  (use-package! evil-cleverparens
+    :init
+    (setq evil-move-beyond-eol t
+          evil-cleverparens-use-additional-bindings nil
+          ;; evil-cleverparens-swap-move-by-word-and-symbol t
+          ;; evil-cleverparens-use-regular-insert t
+          )
+
+    (add-hook! clojure-mode #'evil-cleverparens-mode)
+    ;; (add-hook 'smartparens-enabled-hook #'evil-smartparens-mode)
+    ))
+#+END_SRC
+** Aggressive indent
+#+BEGIN_SRC emacs-lisp
+(after! clojure-mode
+  (use-package! aggressive-indent
+    :config (add-hook! clojure-mode (aggressive-indent-mode 1))))
+#+END_SRC
+** Cleverparens keybindings
+With ~lispyville~ you can wrap using =M-(= for example!
+#+BEGIN_SRC emacs-lisp
+(map! :after evil-cleverparens
+      :map clojure-mode-map
+      :localleader
+      (:desc "Wrap round" :n "(" #'sp-wrap-round
+       :desc "Wrap square" :n "[" #'sp-wrap-square
+       :desc "Wrap curly" :n "{" #'sp-wrap-curly
+       :desc "Unwrap sexp" :n "u" #'sp-unwrap-sexp
+       ))
+#+END_SRC
+** TODO Lispyville
+#+BEGIN_SRC emacs-lisp
+;; (after! lispyville
+;;   (setq lispyville-key-theme
+;;         '((operators normal)
+;;           ;; c-w
+;;           (prettify insert)
+;;           (atom-movement normal visual)
+;;           slurp/barf-lispy
+;;           additional
+;;           ;; additional-insert
+;;           additional-wrap
+;;           additional-motions))
+
+;;   ;; (setq lispyville-motions-put-into-special t)
+
+;;   (map! :mode lispy-mode
+;;         :after lispyville
+;;         ;; :i "M-[" #'lispy-brackets
+;;         :n "[" #'lispyville-previous-opening
+;;         :n "]" #'lispyville-next-opening)
+
+;;   (map! :map lispy-mode-map
+;;         :after lispyville
+;;         :i "[" #'lispy-brackets)
+
+;;   ;; (map! :map evil-motion-state-map
+;;   ;;         :n "[[" #'lispyville-previous-opening)
+;;   )
+#+END_SRC
+
+** TODO Vega view
+#+BEGIN_SRC emacs-lisp
+;; (after! cider
+;;   (use-package! vega-view
+;;     :init
+;;     (setq vega-view-prefer-png t)))
+#+END_SRC
+** nREPL timeout
+#+BEGIN_SRC emacs-lisp
+(after! cider
+ (setq nrepl-sync-request-timeout nil))
+#+END_SRC
+** Align vertically automatically
+#+BEGIN_SRC emacs-lisp
+(after! clojure-mode
+  (setq clojure-align-forms-automatically t))
+#+END_SRC
+
+** TODO Sayid debugger
+#+BEGIN_SRC emacs-lisp
+;; (after! cider
+;;   (eval-after-load 'clojure-mode
+;;     '(sayid-setup-package)))
+
+;; (use-package sayid
+;;     :defer t
+;;     :init
+;;     (progn
+;;       (setq sayid--key-binding-prefixes
+;;             '(("mdt" . "trace")))
+;;       (spacemacs|forall-clojure-modes m
+;;         (mapc (lambda (x) (spacemacs/declare-prefix-for-mode m
+;;                             (car x) (cdr x)))
+;;               sayid--key-binding-prefixes)
+;;         (spacemacs/set-leader-keys-for-major-mode m
+;;           ;;These keybindings mostly preserved from the default sayid bindings
+;;           "d!" 'sayid-load-enable-clear
+;;           "dE" 'sayid-eval-last-sexp ;in default sayid bindings this is lowercase e, but that was already used in clojure mode
+;;           "dc" 'sayid-clear-log
+;;           "df" 'sayid-query-form-at-point
+;;           "dh" 'sayid-show-help
+;;           "ds" 'sayid-show-traced
+;;           "dS" 'sayid-show-traced-ns
+;;           "dtb" 'sayid-trace-ns-in-file
+;;           "dtd" 'sayid-trace-fn-disable
+;;           "dtD" 'sayid-trace-disable-all
+;;           "dte" 'sayid-trace-fn-enable
+;;           "dtE" 'sayid-trace-enable-all
+;;           "dtK" 'sayid-kill-all-traces
+;;           "dtn" 'sayid-inner-trace-fn
+;;           "dto" 'sayid-outer-trace-fn
+;;           "dtp" 'sayid-trace-ns-by-pattern
+;;           "dtr" 'sayid-remove-trace-fn
+;;           "dty" 'sayid-trace-all-ns-in-dir
+;;           "dV" 'sayid-set-view
+;;           "dw" 'sayid-get-workspace
+;;           "dx" 'sayid-reset-workspace
+;;           ))
+
+;;       (evilified-state-evilify sayid-mode sayid-mode-map
+;;         (kbd "H") 'sayid-buf-show-help
+;;         (kbd "n") 'sayid-buffer-nav-to-next
+;;         (kbd "N") 'sayid-buffer-nav-to-prev
+;;         (kbd "C-s v") 'sayid-toggle-view
+;;         (kbd "C-s V") 'sayid-set-view
+;;         (kbd "L") 'sayid-buf-back
+;;         (kbd "e") 'sayid-gen-instance-expr) ;Originally this was bound to 'g', but I feel this is still mnemonic and doesn't overlap with evil
+
+;;       (evilified-state-evilify sayid-pprint-mode sayid-pprint-mode-map
+;;         (kbd "h") 'sayid-pprint-buf-show-help
+;;         (kbd "n") 'sayid-pprint-buf-next
+;;         (kbd "N") 'sayid-pprint-buf-prev
+;;         (kbd "l") 'sayid-pprint-buf-exit)
+
+;;       (evilified-state-evilify sayid-traced-mode sayid-traced-mode-map
+;;         (kbd "l") 'sayid-show-traced
+;;         (kbd "h") 'sayid-traced-buf-show-help)))
+#+END_SRC
+** Cider keybindings
+Remember you can use =gr af= to evaluate the outer form.
+=ap= is a paragraph, =as= is a sentence.
+#+BEGIN_SRC emacs-lisp
+(map! :after cider
+      :map clojure-mode-map
+      :localleader
+      (:desc "eval" :prefix "e"
+       :desc "sexp in comment" :n "E" #'cider-pprint-eval-last-sexp-to-comment
+       :desc "defun in comment" :n "D" #'cider-pprint-eval-defun-to-comment
+       ))
+#+END_SRC
+* Shell
+** Async Shell command
+#+BEGIN_SRC emacs-lisp
+(defun shell-command-print-separator ()
+  (overlay-put (make-overlay (point-max) (point-max))
+               'before-string
+               (propertize "!" 'display
+                           (list 'left-fringe
+                                 'right-triangle))))
+
+(advice-add 'shell-command--save-pos-or-erase :after 'shell-command-print-separator)
+#+END_SRC
+** Async command and vterm popups
+#+BEGIN_SRC emacs-lisp
+  (set-popup-rule! "*Async Shell Command*" :side 'bottom :size .40)
+  (set-popup-rule! "vterm" :side 'right :size .40 :quit 'current)
+#+END_SRC
+** TODO Counsel rg base command
+#+BEGIN_SRC emacs-lisp
+;; (after! counsel
+  ;; :config
+  ;; Thanks to https://github.com/kaushalmodi/.emacs.d/blob/master/setup-files/setup-counsel.el
+  ;; (setq counsel-rg-base-command "rg --with-filename --no-heading --line-number --hidden --color never %s"))
+  ;; (setq counsel-rg-base-command (concat counsel-rg-base-command " --hidden")))
+#+END_SRC
